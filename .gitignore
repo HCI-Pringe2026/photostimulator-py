@@ -1,3 +1,6 @@
 .idea
 .venv
 Settings.txt
+build
+dist
+*.spec
