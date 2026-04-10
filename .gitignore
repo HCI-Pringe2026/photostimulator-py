@@ -4,3 +4,4 @@ Settings.txt
 build
 dist
 *.spec
+.vs

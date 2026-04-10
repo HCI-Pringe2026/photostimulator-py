@@ -4,6 +4,7 @@ Sends a space-separated string of 6 frequencies over a serial port.
 """
 
 import sys
+import time
 from pathlib import Path
 
 import serial
@@ -16,8 +17,13 @@ from PySide6.QtWidgets import (
     QGroupBox, QFrame, QSizePolicy, QMessageBox,
 )
 
-# Frequency list: "0", then 1000/i for i = 1..500 (matches original C# app)
-FREQUENCIES: list[str] = ["0"] + [f"{1000.0 / i:.10g}" for i in range(1, 501)]
+# Frequency list: "0", then 1000/i for i = 1..500.
+# 6 decimal places, trailing zeros stripped — matches Arduino float precision
+# and avoids scientific notation which Serial.parseFloat() cannot handle.
+FREQUENCIES: list[str] = ["0"] + [
+    f"{1000.0 / i:.6f}".rstrip("0").rstrip(".")
+    for i in range(1, 501)
+]
 
 NUM_CHANNELS = 6
 SETTINGS_FILE = Path("Settings.txt")
@@ -57,9 +63,12 @@ class SerialSendWorker(QThread):
     def run(self):
         try:
             with serial.Serial(self.port, baudrate=9600, timeout=1) as ser:
-                ser.write(self.data.encode("ascii"))
-                import time; time.sleep(0.1)
-                response = ser.read_all().decode("ascii", errors="replace").strip()
+                # Append '\n' so Arduino's parseFloat() knows the last number
+                # is complete without waiting for its 1-second serial timeout.
+                ser.write((self.data + "\n").encode("utf-8"))
+                # Wait for Arduino to process all 6 values and send replies.
+                time.sleep(0.5)
+                response = ser.read_all().decode("utf-8", errors="replace").strip()
             msg = f"=> {self.data}"
             if response:
                 msg += f"\n<= {response}"
